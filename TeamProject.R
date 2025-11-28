@@ -88,6 +88,9 @@ rm(cols_to_clean, na_check)
 # Creating composite variables
 ################################################################################
 
+# Flagging whether someone received a transfusion
+clean_df["recieved_transfusion"] <- if_else(clean_df["total_24hr_rbc"] > 0, TRUE, FALSE)
+
 # Event variable where event (1= died, 0=alive/censored)
 clean_df["event"] <- if_else(clean_df$alive_12mths == "TRUE", 0, 1)
 
