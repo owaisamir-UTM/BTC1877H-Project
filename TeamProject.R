@@ -159,7 +159,6 @@ table1(
 ################################################################################
 # Sub-Analysis 1.1: The "Screening" Model (Who needs ANY blood?)
 ################################################################################
-
 # Create the outcome variable for this analysis: Any Transfusion
 # 1 = patient received at least 1 unit of RBCs in first 24 hours
 # 0 = patient received 0 units of RBCs
@@ -239,7 +238,9 @@ results_summary <- data.frame(
   OR = round(or_table[-1, 1], 3),                   
   CI_Lower = round(or_table[-1, 2], 3),             
   CI_Upper = round(or_table[-1, 3], 3),             
-  P_Value = round(summary(screening_model)$coefficients[-1, 4], 4)  
+  P_Value = ifelse(summary(screening_model)$coefficients[-1, 4] < 0.001, 
+                   "<0.001", 
+                   round(summary(screening_model)$coefficients[-1, 4], 3))
 )
 
 # Display results summary table
