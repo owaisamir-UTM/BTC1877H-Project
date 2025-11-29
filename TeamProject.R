@@ -189,7 +189,6 @@ linreg_stepwise <- stepAIC(linreg_full_model, direction = "both")
 # Summary of the stepwise-selected Linear Regression Model for the Volume Model
 summary(linreg_stepwise)
 
-
 ################################################################################
 # Sub-Analysis 2.1: Survival Analysis (Mortality)
 ################################################################################
