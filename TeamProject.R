@@ -18,6 +18,7 @@ library(broom)
 library(pROC)
 library(tree)
 library(gt)
+library(car)
 
 ################################################################################
 # Reading in data and copying
@@ -167,6 +168,7 @@ clean_df$any_transfusion <- as.numeric(clean_df$total_24hr_rbc > 0)
 # Defining the predictor variables for the model
 # These were selected based on clinical knowledge from literature review and available data 
 predictor_vars <- c("age",                    # Patient age in years
+                    "gender",                 # Biological sex
                     "bmi",                    # Body Mass Index
                     "high_risk_patient",      # Composite high-risk indicator
                     "pre_hb",                 # Preoperative hemoglobin (g/L)
@@ -178,128 +180,73 @@ predictor_vars <- c("age",                    # Patient age in years
 model1_data <- clean_df[, c(predictor_vars, "any_transfusion")]
 
 # Using complete case analysis, so removing rows with missing data
-# LASSO regression requires complete data for all variables
 model1_data <- model1_data[complete.cases(model1_data), ]
 
-# Prepare predictor matrix (X) and outcome vector (Y) for glmnet
-# model.matrix() converts factors to dummy variables and creates design matrix
-# [,-1] removes the intercept column (glmnet adds its own intercept)
-X <- model.matrix(any_transfusion ~ age + bmi + high_risk_patient + 
-                    pre_hb + baseline_coagulopathy + type + las_score, 
-                  data = model1_data)[, -1]
+# Check sample size adequacy (EPV should be ≥10)
+# Since we have 8 predictors need at least 80 (8x10) transfusion events total 
+n_events <- sum(model1_data$any_transfusion)
+n_predictors <- length(predictor_vars)
+epv <- n_events / n_predictors
+print(epv)
 
-# Extract the binary outcome variable
-Y <- model1_data$any_transfusion
+# Fit multivariable logistic regression model
+screening_model <- glm(any_transfusion ~ age + gender + bmi + high_risk_patient + 
+                         pre_hb + baseline_coagulopathy + type + las_score,
+                       data = model1_data,
+                       family = binomial(link = "logit"))
 
-# Set random seed for reproducibility of cross-validation results
-set.seed(2025)
+# Display full model summary including coefficients, SEs, z-values, and p-values
+print(summary(screening_model))
 
-# Perform 10-fold cross-validated LASSO regression
-# cv.glmnet() tests different penalty values (lambda) to find optimal model
-# optimizing area under the curve (auc)
-cv_lasso <- cv.glmnet(X, Y, 
-                      family = "binomial", 
-                      alpha = 1,
-                      nfolds = 10,
-                      type.measure = "auc")
+# Check for multicollinearity using VIF
+# Should all be below 5 
+vif_values <- vif(screening_model)
+print(vif_values)
 
-# Plot cross-validation results showing model performance vs. lambda
-# Save as PDF 
-pdf("model1_lasso_cv_plot.pdf", width = 8, height = 6)
-plot(cv_lasso)
-title("LASSO Cross-Validation for Any Transfusion Model", line = 2.5)
-dev.off() # to close the plot file 
+# Calculate odds ratios with 95% confidence intervals
+# exp() converts log-odds to odds ratios, confint() for CIs
+or_table <- exp(cbind(OR = coef(screening_model), confint(screening_model)))
+print(round(or_table, 3))
 
-# Fit final LASSO model using lambda.1se
-# lambda.1se gives simpler model with fewer predictors, while still staying
-# within the one standard error of the min cross-validation error 
-# Chose simpler model to reduce risk of overfitting, but will confirm with auc
-lasso_model <- glmnet(X, Y, 
-                      family = "binomial", 
-                      alpha = 1,
-                      lambda = cv_lasso$lambda.1se)
+# Generate predicted probabilities for each patient
+# This is used to calculate AUC, to measure overall model discrimination
+model1_data$predicted_prob <- predict(screening_model, type = "response")
 
-# Extract coefficients from LASSO model
-lasso_coefs <- coef(lasso_model)
+# Calculate Area Under the ROC Curve (AUC)
+# AUC measures the model's ability to discriminate between transfused 
+# vs non-transfused patients
+roc_obj <- roc(model1_data$any_transfusion, model1_data$predicted_prob, quiet = TRUE)
+auc_value <- auc(roc_obj)
+auc_ci <- ci.auc(roc_obj) # Calculate 95% confidence interval for AUC
 
-# Identify which variables were selected (the non-zero coefficients)
-selected_vars <- rownames(lasso_coefs)[which(lasso_coefs != 0)]
-selected_coefs <- as.vector(lasso_coefs)[which(lasso_coefs != 0)]
+# Create and save ROC curve plot
+# This figure shows sensitivity vs. (1-specificity) across all thresholds
+pdf("model1_roc_curve_screening.pdf", width = 8, height = 8)
+plot(roc_obj, 
+     main = "ROC Curve: Screening Model for Any Transfusion",
+     col = "orchid", 
+     lwd = 2,
+     print.auc = TRUE,          # Print AUC value on plot
+     print.auc.y = 0.4,         # Position of AUC text
+     legacy.axes = TRUE)        
+abline(a = 0, b = 1, lty = 2, col = "gray")  # Add diagonal reference line (chance)
+dev.off()
 
-# Print selected features and their LASSO coefficients
-# Note: These are penalized coefficients, not the final odds ratios
-for(i in 1:length(selected_vars)) {
-  print(sprintf("%s: %.4f", selected_vars[i], selected_coefs[i]))
-}
+# Create results summary table for report
+results_summary <- data.frame(
+  Variable = names(coef(screening_model))[-1],          
+  Coefficient = round(coef(screening_model)[-1], 3),    
+  OR = round(or_table[-1, 1], 3),                   
+  CI_Lower = round(or_table[-1, 2], 3),             
+  CI_Upper = round(or_table[-1, 3], 3),             
+  P_Value = round(summary(screening_model)$coefficients[-1, 4], 4)  
+)
 
-# Remove intercept from selected variables list
-non_intercept_vars <- selected_vars[selected_vars != "(Intercept)"]
+# Display results summary table
+print(results_summary)
 
-# Check if LASSO selected at least one predictor variable
-if(length(non_intercept_vars) > 0) {
-  
-  # Build formula for standard logistic regression using LASSO-selected variables
-  # To get Odds Ratios with CI
-  formula_str <- "any_transfusion ~ high_risk_patient + pre_hb"
-  
-  # Fit standard (non-penalized) logistic regression with selected predictors
-  # This gives us maximum likelihood estimates for odds ratios
-  final_model <- glm(as.formula(formula_str), 
-                     data = model1_data, 
-                     family = binomial(link = "logit"))
-  
-  # Display full model summary including coefficients, SEs, z-values, and p-values
-  print(summary(final_model))
-  # exp() to converts log-odds to odds ratios, confint() for CIs
-  or_table <- exp(cbind(OR = coef(final_model), confint(final_model)))
-  print(round(or_table, 3))
-  
-  # Generate predicted probabilities for each patient
-  model1_data$predicted_prob <- predict(final_model, type = "response")
-  
-  # Calculate Area Under the ROC Curve (AUC)
-  # AUC measures the model's ability to discriminate between outcomes
-  roc_obj <- roc(model1_data$any_transfusion, model1_data$predicted_prob, quiet = TRUE)
-  auc_value <- auc(roc_obj)
-  
-  # Calculate 95% confidence interval for AUC
-  auc_ci <- ci.auc(roc_obj)
-  
-  # Create and save ROC curve plot
-  # This figure shows sensitivity vs. (1-specificity) across all thresholds
-  pdf("model1_roc_curve_screening.pdf", width = 8, height = 8)
-  plot(roc_obj, 
-       main = "ROC Curve: Screening Model for Any Transfusion",
-       col = "orchid", 
-       lwd = 2,
-       print.auc = TRUE,          # Print AUC value on plot
-       print.auc.y = 0.4,         # Position of AUC text
-       legacy.axes = TRUE)        
-  abline(a = 0, b = 1, lty = 2, col = "gray")  # Add diagonal reference line (chance)
-  dev.off()
-  
-  # Create results summary table for report
-  results_summary <- data.frame(
-    Variable = names(coef(final_model))[-1],          
-    Coefficient = round(coef(final_model)[-1], 3),    
-    OR = round(or_table[-1, 1], 3),                   
-    CI_Lower = round(or_table[-1, 2], 3),             
-    CI_Upper = round(or_table[-1, 3], 3),             
-    P_Value = round(summary(final_model)$coefficients[-1, 4], 4)  
-  )
-  
-  # Display results summary table
-  print(results_summary)
-  
-  # Save results table to CSV file 
-  write.csv(results_summary, "screening_model1_results.csv", row.names = FALSE)
-  
-} else {
-  # Handle case where LASSO selected no variables (all coefficients = 0)
-  # This can happen if lambda is too high or predictors have weak signals
-  # Would try lambda.min for less aggressive shrinkage 
-  print("LASSO selected no variables (all coefficients shrunk to zero).")
-}
+# Save results table to CSV file 
+write.csv(results_summary, "screening_model1_results.csv", row.names = FALSE)
 
 ################################################################################
 # Sub-Analysis 1.2: The "Crisis" Model (Who needs MASSIVE blood?)
