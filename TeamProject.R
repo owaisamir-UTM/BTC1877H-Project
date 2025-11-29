@@ -90,7 +90,7 @@ rm(cols_to_clean, na_check)
 ################################################################################
 
 # Flagging whether someone received a transfusion
-clean_df["recieved_transfusion"] <- if_else(clean_df["total_24hr_rbc"] > 0, TRUE, FALSE)
+clean_df["any_transfusion"] <- if_else(clean_df["total_24hr_rbc"] > 0, 1, 0)
 
 # Event variable where event (1= died, 0=alive/censored)
 clean_df["event"] <- if_else(clean_df$alive_12mths == "TRUE", 0, 1)
@@ -159,10 +159,6 @@ table1(
 ################################################################################
 # Sub-Analysis 1.1: The "Screening" Model (Who needs ANY blood?)
 ################################################################################
-# Create the outcome variable for this analysis: Any Transfusion
-# 1 = patient received at least 1 unit of RBCs in first 24 hours
-# 0 = patient received 0 units of RBCs
-clean_df$any_transfusion <- as.numeric(clean_df$total_24hr_rbc > 0)
 
 # Defining the predictor variables for the model
 # These were selected based on clinical knowledge from literature review and available data 
