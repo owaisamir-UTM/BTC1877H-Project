@@ -164,10 +164,30 @@ table1(
 # Sub-Analysis 1.2: The "Crisis" Model (Who needs MASSIVE blood?)
 ################################################################################
 
+# Defining the logistic regression model for the Crisis Model (Sub-Analysis 1.2)
+logreg_full_model <- glm(massive_transfusion ~ age + gender + type + bmi + high_risk_patient + 
+                           pre_hb + baseline_coagulopathy + las_score, data = clean_df, family = binomial)
+
+# Stepwise selection for the Crisis Model
+logreg_stepwise <- stepAIC(logreg_full_model, direction = "both")
+
+# Summary of the stepwise-selected Logistic Regression Model for the Crisis Model
+summary(logreg_stepwise)
+
 
 ################################################################################
 # Sub-Analysis 1.3: The "Volume" Model (What drives amount?)
 ################################################################################
+
+# Linear regression for the Volume Model with all predictors
+linreg_full_model <- lm(total_24hr_rbc ~ age + gender + type + bmi + high_risk_patient + 
+                          pre_hb + baseline_coagulopathy + las_score, data = clean_df)
+
+# Stepwise selection for the Volume Model
+linreg_stepwise <- stepAIC(linreg_full_model, direction = "both")
+
+# Summary of the stepwise-selected Linear Regression Model for the Volume Model
+summary(linreg_stepwise)
 
 
 ################################################################################
