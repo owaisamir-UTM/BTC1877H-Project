@@ -152,7 +152,7 @@ table1(
     massive_transfusion +
     high_risk_patient +
     baseline_coagulopathy
-  | gender,
+  | factor(any_transfusion, levels = c(0,1), labels = c("No Transfusion", "Recieved Transfusion")),
   data = clean_df
 )
 
