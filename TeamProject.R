@@ -248,11 +248,60 @@ write.csv(results_summary, "screening_model1_results.csv", row.names = FALSE)
 logreg_full_model <- glm(massive_transfusion ~ age + gender + type + bmi + high_risk_patient + 
                            pre_hb + baseline_coagulopathy + las_score, data = clean_df, family = binomial)
 
-# Stepwise selection for the Crisis Model
-logreg_stepwise <- stepAIC(logreg_full_model, direction = "both")
 
 # Summary of the stepwise-selected Logistic Regression Model for the Crisis Model
-summary(logreg_stepwise)
+print(summary(logreg_full_model))
+
+# Checking multicollinearity with VIF
+vif_values1.2 <- vif(logreg_full_model)
+print(vif_values1.2)
+# Results: VIF < 5 → no concerning multicollinearity
+
+# Extract model estimates
+coef_est  <- coef(logreg_full_model)
+wald_CI   <- confint.default(logreg_full_model)
+OR        <- exp(coef_est)
+OR_CI     <- exp(wald_CI)
+p_values  <- summary(logreg_full_model)$coefficients[,4]
+
+# Build clean dataframe
+result_table <- data.frame(
+  Predictor   = names(coef_est),
+  Coefficient = coef_est,
+  P_value     = p_values,
+  OR          = OR,
+  CI_lower    = OR_CI[,1],
+  CI_upper    = OR_CI[,2]
+)
+
+# Remove OR & CI only for the intercept (set to NA)
+result_table$OR[result_table$Predictor == "(Intercept)"] <- NA
+result_table$CI_lower[result_table$Predictor == "(Intercept)"] <- NA
+result_table$CI_upper[result_table$Predictor == "(Intercept)"] <- NA
+
+# Output table cleanly
+result_table %>%
+  gt() %>%
+  tab_header(
+    title = "Logistic Regression Results — Massive Transfusion Model",
+    subtitle = "Coefficients, Odds Ratios, and 95% Confidence Intervals"
+  ) %>%
+  fmt_number(
+    columns = c(Coefficient, OR, CI_lower, CI_upper),
+    decimals = 4
+  ) %>%
+  fmt_scientific(
+    columns = P_value,
+    decimals = 3
+  ) %>%
+  cols_label(
+    Predictor   = "Predictor",
+    Coefficient = "Coefficient (β)",
+    OR          = "Odds Ratio",
+    CI_lower    = "95% CI (Lower)",
+    CI_upper    = "95% CI (Upper)",
+    P_value     = "p-value"
+  )
 
 
 ################################################################################
@@ -263,11 +312,97 @@ summary(logreg_stepwise)
 linreg_full_model <- lm(total_24hr_rbc ~ age + gender + type + bmi + high_risk_patient + 
                           pre_hb + baseline_coagulopathy + las_score, data = clean_df)
 
-# Stepwise selection for the Volume Model
-linreg_stepwise <- stepAIC(linreg_full_model, direction = "both")
 
 # Summary of the stepwise-selected Linear Regression Model for the Volume Model
-summary(linreg_stepwise)
+summary(linreg_full_model)
+
+# 95% confidence intervals for coefficients
+confint(linreg_full_model)
+
+# Assessing linearity, homoescedasticity, normality and independence, plus checking VIF
+
+# 1) Histogram of residuals
+hist(resid(linreg_full_model),
+     main = "Histogram of Residuals",
+     xlab  = "Residuals")
+
+# 2) Residuals versus fitted values (linearity + homoscedasticity)
+plot(fitted(linreg_full_model), resid(linreg_full_model),
+     main = "Residuals Versus Fitted Values",
+     xlab  = "Fitted values",
+     ylab  = "Residuals")
+abline(h = 0, col = "red", lty = 2)
+
+# 3) Normal Q–Q plot of residuals (normality)
+qqnorm(resid(linreg_full_model), main = "Q–Q Plot of Residuals")
+qqline(resid(linreg_full_model), col = 2)
+
+# 4) Variance Inflation Factors (multicollinearity)
+vif(linreg_full_model)
+
+###### SQRT Transformation ###########
+
+# Square-root transform of total_24hr_rbc
+m_vol_sqrt <- lm(sqrt(total_24hr_rbc) ~ age + gender + type + bmi +
+                   high_risk_patient + pre_hb +
+                   baseline_coagulopathy + las_score,
+                 data = clean_df)
+
+# Model summary
+summary(m_vol_sqrt)
+
+# 95% CI for coefficients
+confint(linreg_sqrt)
+
+# Diagnostics
+
+# 1) Histogram of residuals
+hist(resid(m_vol_sqrt),
+     main = "Histogram of Residuals (sqrt Volume Model)",
+     xlab = "Residuals")
+
+# 2) Residuals vs fitted
+plot(fitted(m_vol_sqrt), resid(m_vol_sqrt),
+     main = "Residuals Versus Fitted Values (sqrt Volume Model)",
+     xlab = "Fitted Values",
+     ylab = "Residuals")
+
+# 3) Q-Q plot
+qqnorm(resid(m_vol_sqrt), main = "Q-Q Plot (sqrt Volume Model)")
+qqline(resid(m_vol_sqrt), col = 2)
+
+
+# 4) Variance Inflation Factor (VIF)
+vif(m_vol_sqrt)
+
+# Get model results with 95% CI
+res <- tidy(m_vol_sqrt, conf.int = TRUE)
+
+# Remove the statistic column safely
+res <- dplyr::select(res, -dplyr::all_of("statistic"))
+
+# Build table
+res %>%
+  gt() %>%
+  tab_header(
+    title = "Linear Regression Results (sqrt Volume Model)"
+  ) %>%
+  fmt_number(
+    columns = c(estimate, std.error, conf.low, conf.high),
+    decimals = 4
+  ) %>% 
+  fmt_scientific(
+    columns = p.value,
+    decimals = 3
+  ) %>%
+  cols_label(
+    term = "Predictor",
+    estimate = "Coefficient (β)",
+    std.error = "Std Error",
+    p.value = "p-value",
+    conf.low = "95% CI (Lower)",
+    conf.high = "95% CI (Upper)"
+  )
 
 ################################################################################
 # Sub-Analysis 2.1: Survival Analysis (Mortality)
