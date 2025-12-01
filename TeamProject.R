@@ -547,4 +547,70 @@ clean_df |>
 ################################################################################
 # Sub-Analysis 2.2: Resource Utilization (ICU LOS) 
 ################################################################################
+# Multiple Linear Regression with Days in ICU as outcome, using all predictors
+
+# Defining predictors
+predictors <- c("total_24hr_rbc",
+                "age",                   
+                "gender",            
+                "bmi",               
+                "high_risk_patient", 
+                "pre_hb",                
+                "baseline_coagulopathy", 
+                "type",                   
+                "las_score")
+
+# Subsetting data
+ICU_df <- clean_df[, c(predictors, "duration_of_icu_stay_days")]
+
+# Checking for missing values
+colSums(is.na(ICU_df))
+
+# Some missing values found, complete case analysis done 
+ICU_df_comp <- na.omit(ICU_df)
+
+# Creating formula
+ICU_formula <- as.formula(
+  paste("duration_of_icu_stay_days ~", paste(predictors, collapse = " + ")))
+
+# Creating ICU outcome model
+ICU_model <- lm(ICU_formula, data = ICU_df_comp)
+
+# Investigating results
+summary(ICU_model)
+
+# Multicolinearity Check
+vif(ICU_model)                  # all VIFs low
+                                
+# Obtaining 95% CIs
+confint(ICU_model, level = 0.95)
+
+# Making some plots 
+plot(predict(ICU_model), ICU_df_comp$duration_of_icu_stay_days,
+     xlab = "Predicted ICU LOS",
+     ylab = "Observed ICU LOS",
+     main = "Observed vs. Predicted ICU LOS")
+
+abline(0, 1, col = "red", lwd = 2)
+
+legend("right",
+       legend = c("Perfect Fit Line"),
+       col = "red",
+       lty = 1,
+       lwd = 2,
+       bty = "n")
+
+par(mfrow = c(1, 2))
+hist(ICU_df_comp$duration_of_icu_stay_days, main = "Distribution of Length of of Stay in ICU",
+     xlab = "Length of ICU stay (in days)", ylab = "Number of Patients")
+
+hist(ICU_df_comp$total_24hr_rbc, main = "Distribution of RBC Units Transfused in 24hrs",
+     xlab = "Units of RBC Transfused", ylab = "Number of Patients")
+
+
+
+
+
+
+
 
