@@ -119,8 +119,6 @@ clean_df["baseline_coagulopathy"] <- if_else(clean_df$pre_inr > 1.5 | clean_df$p
 
 # Variable labels
 label(clean_df$age) <- "Age (years)"
-label(clean_df$height) <- "Height (cm)"
-label(clean_df$weight) <- "Weight (kg)"
 label(clean_df$bmi) <- "BMI (kg/m²)"
 label(clean_df$gender) <- "Gender"
 label(clean_df$type) <- "Transplant type"
@@ -130,9 +128,6 @@ label(clean_df$ecls_cpb) <- "CPB/ECLS use"
 label(clean_df$cystic_fibrosis) <- "Cystic fibrosis"
 label(clean_df$idiopathic_pulmonary_hypertension) <- "Idiopathic pulmonary HTN"
 label(clean_df$las_score) <- "LAS score"
-label(clean_df$pre_hb) <- "Pre-op Hb (g/L)"
-label(clean_df$pre_platelets) <- "Pre-op platelets (×10⁹/L)"
-label(clean_df$pre_inr) <- "Pre-op INR"
 label(clean_df$total_24hr_rbc) <- "RBC transfusion 0–24h (units)"
 label(clean_df$duration_of_icu_stay_days) <- "ICU LOS (days)"
 label(clean_df$massive_transfusion) <- "Massive transfusion"
@@ -141,19 +136,19 @@ label(clean_df$baseline_coagulopathy) <- "Baseline coagulopathy"
 
 # Generating Table1 Summary
 table1(
-  ~ age + height + weight + bmi +
+  ~ age + bmi +
     type +
     redo_lung_transplant + intraoperative_ecls + ecls_cpb +
     cystic_fibrosis + idiopathic_pulmonary_hypertension +
     las_score +
-    pre_hb + pre_platelets + pre_inr +
     total_24hr_rbc +
     duration_of_icu_stay_days +
     massive_transfusion +
     high_risk_patient +
     baseline_coagulopathy
   | factor(any_transfusion, levels = c(0,1), labels = c("No Transfusion", "Recieved Transfusion")),
-  data = clean_df
+  data = clean_df,
+  caption = "<b>Table 1. Baseline Characteristics of the Study Cohort</b>",
 )
 
 ################################################################################
