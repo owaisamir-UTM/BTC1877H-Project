@@ -408,7 +408,7 @@ res %>%
 # Sub-Analysis 2.1: Survival Analysis (Mortality)
 ################################################################################
 
-                  # Kaplan-Meier estimator for the whole cohort
+# Kaplan-Meier estimator for the whole cohort
 km_overall <- survfit(Surv(survival_time, event == 1) ~ 1, data = clean_df)
 
 print(km_overall)
@@ -529,7 +529,6 @@ ggplot(forest_data, aes(x = estimate, y = term)) +
   ) +
   theme_bw()
 
-
 # Descriptive statistics by survival status
 clean_df |>
   filter(!is.na(las_score)) |>
@@ -606,11 +605,3 @@ hist(ICU_df_comp$duration_of_icu_stay_days, main = "Distribution of Length of of
 
 hist(ICU_df_comp$total_24hr_rbc, main = "Distribution of RBC Units Transfused in 24hrs",
      xlab = "Units of RBC Transfused", ylab = "Number of Patients")
-
-
-
-
-
-
-
-
